@@ -1,0 +1,253 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="result-container animate-fade-in">
+    <div class="result-header">
+        <div class="result-badge">Tavsiya etilgan yo'nalish</div>
+        <h1 class="result-title">{{ result.top_category }}</h1>
+        <p class="result-description">
+            Sizning javoblaringiz tahlil qilindi. Sizda <strong>{{ result.top_category }}</strong> sohasiga nisbatan eng yuqori moyillik aniqlandi.
+        </p>
+    </div>
+
+    <div class="result-grid">
+        <!-- Chart Section -->
+        <div class="chart-card">
+            <h3 class="card-subtitle">Ko'rsatkichlar diagrammasi</h3>
+            <div class="canvas-wrapper">
+                <canvas id="resultChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Scores Breakdown -->
+        <div class="scores-card">
+            <h3 class="card-subtitle">Yo'nalishlar bo'yicha foizlar</h3>
+            <div id="scoresBreakdown" class="scores-list">
+                <!-- Data will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <div class="actions">
+        <a href="/" class="btn-primary">Asosiy sahifaga qaytish</a>
+    </div>
+</div>
+
+<style>
+    :root {
+        --primary-gradient: linear-gradient(135deg, #6C63FF 0%, #3F37C9 100%);
+        --glass-bg: rgba(255, 255, 255, 0.05);
+        --glass-border: rgba(255, 255, 255, 0.1);
+    }
+
+    .result-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 40px 20px;
+    }
+
+    .result-header {
+        text-align: center;
+        margin-bottom: 50px;
+    }
+
+    .result-badge {
+        display: inline-block;
+        padding: 6px 16px;
+        background: var(--primary-gradient);
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .result-title {
+        font-size: 3.5rem;
+        font-weight: 800;
+        margin-bottom: 20px;
+        background: linear-gradient(to right, #fff, #6C63FF);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .result-description {
+        font-size: 1.2rem;
+        color: #aaa;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .result-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin-bottom: 40px;
+    }
+
+    .chart-card, .scores-card {
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        padding: 40px;
+        backdrop-filter: blur(10px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .card-subtitle {
+        font-size: 1.1rem;
+        margin-bottom: 25px;
+        color: #fff;
+        opacity: 0.8;
+    }
+
+    .canvas-wrapper {
+        position: relative;
+        height: 350px;
+        width: 100%;
+    }
+
+    /* Scores Breakdown Styling */
+    .scores-list {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    .score-item {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .score-info {
+        display: flex;
+        justify-content: space-between;
+        font-weight: 500;
+    }
+
+    .progress-track {
+        height: 8px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        background: var(--primary-gradient);
+        border-radius: 4px;
+        transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .actions {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .btn-primary {
+        padding: 14px 32px;
+        background: var(--primary-gradient);
+        border-radius: 12px;
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.2s;
+    }
+
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(108, 99, 255, 0.3); }
+
+    @media (max-width: 768px) {
+        .result-grid { grid-template-columns: 1fr; }
+        .result-title { font-size: 2.5rem; }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const rawScores = JSON.parse('{{ scores|safe }}');
+    const categories = Object.keys(rawScores);
+    const scoreValues = Object.values(rawScores);
+    
+    // Calculate Percentages
+    const totalScore = scoreValues.reduce((a, b) => a + b, 0) || 1;
+    const percentages = {};
+    categories.forEach(cat => {
+        percentages[cat] = Math.round((rawScores[cat] / totalScore) * 100);
+    });
+
+    // Populate Scores Breakdown
+    const breakdownContainer = document.getElementById('scoresBreakdown');
+    categories.forEach(cat => {
+        const item = document.createElement('div');
+        item.className = 'score-item';
+        item.innerHTML = `
+            <div class="score-info">
+                <span>${cat}</span>
+                <span>${percentages[cat]}%</span>
+            </div>
+            <div class="progress-track">
+                <div class="progress-bar" style="width: 0%"></div>
+            </div>
+        `;
+        breakdownContainer.appendChild(item);
+        
+        // Animate progress bar
+        setTimeout(() => {
+            item.querySelector('.progress-bar').style.width = percentages[cat] + '%';
+        }, 100);
+    });
+
+    // Chart Integration
+    const ctx = document.getElementById('resultChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: categories,
+            datasets: [{
+                data: categories.map(cat => percentages[cat]),
+                backgroundColor: [
+                    'rgba(108, 99, 255, 0.8)',
+                    'rgba(63, 55, 201, 0.8)',
+                    'rgba(76, 201, 240, 0.8)',
+                    'rgba(114, 9, 183, 0.8)',
+                    'rgba(247, 37, 133, 0.8)'
+                ],
+                borderColor: 'rgba(255, 255, 255, 0.1)',
+                borderWidth: 2,
+                hoverOffset: 20
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'bottom',
+                    labels: {
+                        color: '#fff',
+                        padding: 20,
+                        font: { size: 12 }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return ` ${context.label}: ${context.raw}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

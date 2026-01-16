@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card">
+    <h2 style="text-align: center; margin-bottom: 30px;">Begin Your Journey</h2>
+    <form method="post">
+        {% csrf_token %}
+        <div class="input-group">
+            <label for="name">Full Name</label>
+            <input type="text" id="name" name="name" placeholder="Enter your name" required>
+        </div>
+        <div class="input-group">
+            <label for="phone">Phone Number</label>
+            <input type="tel" id="phone" name="phone" placeholder="+998 90 123 45 67" required>
+        </div>
+        <div style="text-align: center; margin-top: 30px;">
+            <button type="submit" class="btn">Next Step</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

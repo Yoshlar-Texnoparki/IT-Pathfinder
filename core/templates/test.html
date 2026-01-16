@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card" id="test-container" style="max-width: 800px;">
+    <div id="loading" style="text-align: center;">
+        <div class="globe globe-1" style="position: relative; width: 50px; height: 50px; margin: 0 auto;"></div>
+        <p>Loading Assessment...</p>
+    </div>
+    
+    <div id="quiz-interface" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <span style="font-size: 0.9rem; color: #ccc;">Question <span id="current-q">1</span> of <span id="total-q">20</span></span>
+            <div style="width: 200px; height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden;">
+                <div id="progress-bar" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
+            </div>
+        </div>
+
+        <h2 id="question-text" style="font-size: 1.5rem; margin-bottom: 30px; min-height: 60px;"></h2>
+        
+        <div id="choices-container" style="display: grid; gap: 15px;">
+            <!-- Choices will be injected here -->
+        </div>
+
+        <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+            <button id="next-btn" class="btn" disabled>Next Question</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    let questions = [];
+    let currentIndex = 0;
+    let answers = [];
+
+    // Fetch Questions
+    try {
+        const res = await fetch('/api/questions/');
+        const data = await res.json();
+        questions = data.questions;
+        
+        if (questions.length === 0) {
+            document.getElementById('loading').innerHTML = "<p>No questions found. Please contact admin.</p>";
+            return;
+        }
+
+        document.getElementById('total-q').textContent = questions.length;
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('quiz-interface').style.display = 'block';
+        
+        renderQuestion();
+    } catch (e) {
+        console.error(e);
+        document.getElementById('loading').textContent = "Error loading questions.";
+    }
+
+    function renderQuestion() {
+        const q = questions[currentIndex];
+        document.getElementById('current-q').textContent = currentIndex + 1;
+        document.getElementById('progress-bar').style.width = ((currentIndex + 1) / questions.length * 100) + '%';
+        
+        document.getElementById('question-text').textContent = q.text;
+        
+        const choicesContainer = document.getElementById('choices-container');
+        choicesContainer.innerHTML = '';
+        
+        q.choices.forEach(choice => {
+            const btn = document.createElement('div');
+            btn.className = 'choice-btn';
+            btn.style.cssText = `
+                padding: 15px; 
+                background: rgba(255,255,255,0.05); 
+                border: 1px solid var(--glass-border); 
+                border-radius: 10px; 
+                cursor: pointer; 
+                transition: all 0.2s;
+            `;
+            btn.textContent = choice.text;
+            btn.onclick = () => selectChoice(choice.id, btn);
+            choicesContainer.appendChild(btn);
+        });
+        
+        document.getElementById('next-btn').disabled = true;
+        document.getElementById('next-btn').textContent = (currentIndex === questions.length - 1) ? 'Finish Assessment' : 'Next Question';
+    }
+
+    function selectChoice(id, btnElement) {
+        // Clear previous selection
+        document.querySelectorAll('.choice-btn').forEach(b => {
+            b.style.background = 'rgba(255,255,255,0.05)';
+            b.style.borderColor = 'var(--glass-border)';
+        });
+        
+        // Highlight current
+        btnElement.style.background = 'rgba(108, 99, 255, 0.2)';
+        btnElement.style.borderColor = 'var(--primary)';
+        
+        // Save temporary answer (overwrite if exists for this step)
+        answers[currentIndex] = { question_id: questions[currentIndex].id, choice_id: id };
+        
+        document.getElementById('next-btn').disabled = false;
+    }
+
+    document.getElementById('next-btn').onclick = async () => {
+        if (currentIndex < questions.length - 1) {
+            currentIndex++;
+            renderQuestion();
+        } else {
+            // Submit
+            document.getElementById('quiz-interface').style.opacity = '0.5';
+            document.getElementById('next-btn').textContent = 'Calculating...';
+            
+            try {
+                const res = await fetch('/api/submit/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ answers })
+                });
+                const result = await res.json();
+                if (result.redirect_url) {
+                    window.location.href = result.redirect_url;
+                }
+            } catch (e) {
+                alert('Error submitting test.');
+            }
+        }
+    };
+});
+</script>
+{% endblock %}
